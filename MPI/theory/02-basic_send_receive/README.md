@@ -1,6 +1,6 @@
 # 02 MPI Basic send and receive
 
-The Message-passing model provides a **cooperative** way of moving data from one process to another: one process performs a send, and the destination process performs a receive. This is called a **Two-Point communication model**. Changes in the memory of the receiver can happen only when the receiver allows them (by calling MPI receive routines), and only in the memory locations that are specified as the receive buffer in those routines. 
+The Message-passing model provides a **cooperative** way of moving data from one process to another: one process performs a send, and the destination process performs a receive. This is called a **Two-Point communication model**. Changes in the memory of the receiver can happen only when the receiver allows them (by calling MPI receive routines), and only in the memory locations that are specified as the receive buffer in those routines.
 
 ## Basic requirements for an MPI program
 
@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
 	/* ... MPI and normal code ... */
 	MPI_Finalize();
 	/* ... sequential code ... */
-	
+
 	return 0;
 }
 ```
@@ -29,7 +29,7 @@ By default, all processes are included in a communicator, whose name is `MPI_COM
 
 There can be created several instances of a communicator, with different names (e.g. a copy of `MPI_COMM_WORLD` can be created).
 
-Each process has a rank inside a communicator (i.e. similar to the thread ID in OpenMP implementations). 
+Each process has a rank inside a communicator (i.e. similar to the thread ID in OpenMP implementations).
 
 **The rank can only be understood within a communicator**. A process can be (e.g.) rank=0 in COMM_WORLD, and rank=5 in MY_COMM.
 
@@ -46,14 +46,14 @@ The hello world MPI program is:
 int main(int argc, char* argv[])
 {
 	int rank, size;
-	
+
 	MPI_Init(&argc, &argv);
-	
+
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	
+
 	printf("Hello, world! from %d of %d\n",rank,size);
-	
+
 	MPI_Finalize();
 	return 0;
 }
@@ -61,9 +61,9 @@ int main(int argc, char* argv[])
 
 ## MPI Basic Send&Receive (Blocking)
 
-Message passing interface programs consists in several data transmissions within processes. 
+Message passing interface programs consists in several data transmissions within processes.
 
-A data transmission unit (e.g. passing a real variable or array) is performed with a message from one process to another. Hence, when considering a two-point communications MPI model, each message passing consists in a **matching** send/receive pair. 
+A data transmission unit (e.g. passing a real variable or array) is performed with a message from one process to another. Hence, when considering a two-point communications MPI model, each message passing consists in a **matching** send/receive pair.
 
 A message is defined by:
 * A source/destination pair.
@@ -81,13 +81,13 @@ As a summary, the communication requirements are:
 	* Whom to send the data to (receiver's process rank within a communicator).
 	* What kind of data to send (how many and which type: integers/double/characters)
 	* A user-defined *tag* for the message (e.g. the mail subject) to discriminate between different messages for the same receiver.
-	
+
 * Receiver *might* have to know:
 	* Who is sending the data. It is OK to receive messages from everyone using `MPI_ANY_SOURCE`.
 	* What kind of data is received. The data kind is always required, but the size can exceed that of the sender (e.g. receive up to X integers). Specifying **less** buffer size that the sender leads to **buffer overflow**.
 	* What is the message tag. It is OK to receive messages with any tag using `MPI_ANY_TAG`.
-	
-A **matching message** is such that satisfies all of these requirements. 
+
+A **matching message** is such that satisfies all of these requirements.
 
 1. **Blocking send function**
 
@@ -175,24 +175,71 @@ int main(int argc, char **argv){
 
 ## About Blocking message passing models
 
-When passing a message, the only concern is whether the buffer can be safely overwritten (for the process that sends) and used (for the process that receives). 
+When passing a message, the only concern is whether the buffer can be safely overwritten (for the process that sends) and used (for the process that receives).
 
-Blocking message passing means that functions `MPI_Send` and `MPI_Recv` **do not return** until the buffer variable can be safely overwritten (send) or used (receive). 
+Blocking message passing means that functions `MPI_Send` and `MPI_Recv` **do not return** until the buffer variable can be safely overwritten (send) or used (receive).
 
 This means:
 
-* For **`MPI_Send`**: 
-	* The function does not return until the message is either **received** by the receiver (long messages) or **stored** in a local system buffer, prior to be sent to the receiver (usually in short messages). 
+* For **`MPI_Send`**:
+	* The function does not return until the message is either **received** by the receiver (long messages) or **stored** in a local system buffer, prior to be sent to the receiver (usually in short messages).
 	* Either way, the buffer variable can be safely overwritten without compromising the receiver message (i.e. the buffer content is safe somewhere) after the MPI_Send call, because the message is stored somewhere.
 	* If the buffer is not stored in a system buffer, it waits until a matching receiver is found (possibility of **deadlock**).
-	
+
 * For **`MPI_Recv`**:
 	* The function does not return until the message is received and **the buffer is ready** to be used.
 	* The process is blocked until a matching message is found (possibility of **deadlock**).
 
+The main **advantage** of this model is that is highly secure. After the send/receive calls we can automatically use the buffers. But the main drawbacks are:
+
+* Blocking MPI can lead easily to **deadlock** (i.e. all processes waiting for several messages).
+
+* Blocking MPI is very slow. There are other MPI models that do not stop the processes after the send/receive calls (i.e. the non-blocking send/receive). The main idea behind non-blocking calls is to allow processes to perform additional calculations (which do not involve the buffer) while messages are sent/received.
+
+Regarding the deadlock, consider the example:
+
+```C
+if ( rank == 0 ){
+	call MPI_Send(a,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+	call MPI_Recv(b,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+} else if ( rank == 1 ){
+	call MPI_Send(b,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+	call MPI_Recv(a,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+}
+```
+
+This code interchanges two integer values. Process 0 sends `a` to 1, whilst process 1 sends `b` to 0. Hence, they will both wait until buffers are sent. A successful variable deliver requires that the matching process performs a receive call, but since they are both stuck in the send call, this will not occur. Only if variables `a` or `b` in the send call are stored in a system internal buffer, this code will end up in deadlock. The deadlock, however, is ensured if the send/receive calls are sent in reverse order:
+
+```C
+if ( rank == 0 ){
+	call MPI_Recv(b,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+	call MPI_Send(a,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+} else if ( rank == 1 ){
+	call MPI_Recv(a,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+	call MPI_Send(b,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+}
+```
+This code is 100% a deadlock. The only possibility to perform this task using blocking send and receive is achieved if both processes send/receive in the inverse order.
+
+
+```C
+if ( rank == 0 ){
+	call MPI_Recv(b,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+	call MPI_Send(a,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+} else if ( rank == 1 ){
+	call MPI_Send(b,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+	call MPI_Recv(a,1,MPI_INT, 1, 0, MPI_COMM_WORLD);
+}
+```
+This is easy for 2 processes, but impossible for general cases. This is why we need non-blocking MPI send/receive.
+
 ## About message priority
 
-If two messages with the same matching are sent/received, the order is always guaranteed.
+The main concern is that a send message reach the appropriate receive call. If two messages are sent/received, it is always ensure if the do not match. Otherwise, if two messages **with the same matching** are sent/received, it is guaranteed their arrival in the same order they were sent, so that receive calls should be placed accordingly.
+
+In the example, two arrays *a* and *b* of sizes 100 and 50 respectively are sent from rank 0 to rank 1. Hence, these two messages have the same specifications (destination, tag, and communicator). The receive calls should be placed accordingly. First, two calls with the *a* array first, and the *b* array seconds are specified as **correct**, whilst the inverse order is not (will yield to buffer overflow in the first call).
+
+Even though the sizes sent/received are different in the two calls, these are not involved in whether the two messages match or not.
 
 ```C
 if ( rank == 0 ){
@@ -202,8 +249,8 @@ if ( rank == 0 ){
 
 	/* Correct */
 	MPI_Recv(a, 100, MPI_Int, 0, 0, MPI_COMM_WORLD);
-	MPI_Recv(b, 50, MPI_Int, 0, 0, MPI_COMM_WORLD);	
-	
+	MPI_Recv(b, 50, MPI_Int, 0, 0, MPI_COMM_WORLD);
+
 	/* Incorrect*/
 	MPI_Recv(b, 50, MPI_Int, 0, 0, MPI_COMM_WORLD);		
 	MPI_Recv(a, 100, MPI_Int, 0, 0, MPI_COMM_WORLD);
