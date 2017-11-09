@@ -1,22 +1,3 @@
-<style TYPE="text/css">
-code.has-jax {font: inherit; font-size: 100%; background: inherit; border: inherit;}
-</style>
-<script type="text/x-mathjax-config">
-MathJax.Hub.Config({
-    tex2jax: {
-        inlineMath: [['$','$'], ['\\(','\\)']],
-        skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'] // removed 'code' entry
-    }
-});
-MathJax.Hub.Queue(function() {
-    var all = MathJax.Hub.getAllJax(), i;
-    for(i = 0; i < all.length; i += 1) {
-        all[i].SourceElement().parentNode.className += ' has-jax';
-    }
-});
-</script>
-<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-
 # 02 MPI Basic send and receive
 
 The Message-passing model provides a **cooperative** way of moving data from one process to another: one process performs a send, and the destination process performs a receive. This is called a **Two-Point communication model**. Changes in the memory of the receiver can happen only when the receiver allows them (by calling MPI receive routines), and only in the memory locations that are specified as the receive buffer in those routines.
@@ -191,6 +172,23 @@ int main(int argc, char **argv){
 	return 0;
 }
 ```
+### About handling errors
+
+Almost all MPI procedures return an error code, which we enumerate here:
+
+* MPI_SUCCESS: No error; MPI routine completed successfully.
+
+* MPI_ERR_COMM: Invalid communicator. A common error is to use a null communicator in a call (not even allowed in MPI_Comm_rank).
+
+* MPI_ERR_COUNT: Invalid count argument. Count arguments must be non-negative; a count of zero is often valid.
+
+* MPI_ERR_TYPE: Invalid datatype argument. Additionally, this error can occur if an uncommitted MPI_Datatype (see MPI_Type_commit) is used in a communication call.
+
+* MPI_ERR_TAG: Invalid tag argument. Tags must be non-negative; tags in a receive (MPI_Recv, MPI_Irecv, MPI_Sendrecv, etc.) may also be MPI_ANY_TAG. The largest tag value is available through the the attribute MPI_TAG_UB.
+
+* MPI_ERR_RANK: Invalid source or destination rank. Ranks must be between zero and the size of the communicator minus one; ranks in a receive (MPI_Recv, MPI_Irecv, MPI_Sendrecv, etc.) may also be MPI_ANY_SOURCE.
+
+* MPI_ERR_INTERN: This error is returned when some part of the MPICH implementation is unable to acquire memory.
 
 ## About Blocking message passing models
 
@@ -253,6 +251,13 @@ if ( rank == 0 ){
 }
 ```
 This is easy for 2 processes, but impossible for general cases. This is why we need non-blocking MPI send/receive.
+
+## About differences between C and FORTRAN
+
+All MPI routines in Fortran (except for `mpi_wtime` and `mpi_wtick`) have an additional argument `ierr` at the end of the argument list. `ierr` is an integer and has the same meaning as the return value of the routine in C. In Fortran, MPI routines are subroutines, and are invoked with the call statement.
+
+All MPI objects (e.g., `MPI_Datatype`, `MPI_Comm`) are of type `integer` in Fortran.
+
 
 ## About message priority
 
