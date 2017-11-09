@@ -1,3 +1,22 @@
+<style TYPE="text/css">
+code.has-jax {font: inherit; font-size: 100%; background: inherit; border: inherit;}
+</style>
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+    tex2jax: {
+        inlineMath: [['$','$'], ['\\(','\\)']],
+        skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'] // removed 'code' entry
+    }
+});
+MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for(i = 0; i < all.length; i += 1) {
+        all[i].SourceElement().parentNode.className += ' has-jax';
+    }
+});
+</script>
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
 # 02 MPI Basic send and receive
 
 The Message-passing model provides a **cooperative** way of moving data from one process to another: one process performs a send, and the destination process performs a receive. This is called a **Two-Point communication model**. Changes in the memory of the receiver can happen only when the receiver allows them (by calling MPI receive routines), and only in the memory locations that are specified as the receive buffer in those routines.
@@ -175,6 +194,8 @@ int main(int argc, char **argv){
 
 ## About Blocking message passing models
 
+*"Return of the routine implies completion"*
+
 When passing a message, the only concern is whether the buffer can be safely overwritten (for the process that sends) and used (for the process that receives).
 
 Blocking message passing means that functions `MPI_Send` and `MPI_Recv` **do not return** until the buffer variable can be safely overwritten (send) or used (receive).
@@ -256,3 +277,40 @@ if ( rank == 0 ){
 	MPI_Recv(a, 100, MPI_Int, 0, 0, MPI_COMM_WORLD);
 }
 ```
+
+## Examples
+
+### Calculation of PI
+
+The code `integral_of_pi_blocking.c` computes
+
+$$\pi = 4\int_{0}^{1} \sqrt{1-x^2}dx$$
+
+by using the trapezoid rule. A sequential/parallel code is switched using the variable `HAS_MPI=0/1`. By running `make`, both versions will automatically be compiled and executed.
+
+Regarding the parallel version, the program flow is as follows:
+
+1. Compute each process lower and upper bound as:
+$$a = \frac{rank}{size}, b = \frac{rank+1}{size}$$
+2. Compute each process number of subintervals as:
+$$N_{PROC} = \frac{N}{size}$$
+where $N$ is the total number of subintervals (should be divisible between $size$).
+3. Compute each process integral using the trapezoid rule.
+
+4. Append each process partial results to the rank 0. This is performed using `MPI_Send` and `MPI_Recv` blocking procedures:
+
+```C
+/* Integral will be stored in rank 0 */
+if ( rank == 0 ){
+   REAL integral_p;  /* Partial results */
+   for (int sender = 1; sender < size; sender++){
+      /* Receive partial results from all processes */
+      MPI_Recv(&integral_p, 1, MPI_DOUBLE, sender, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      integral += integral_p;
+   }
+} else
+   /* Send partial results to process 0 */
+   MPI_Send(&integral, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+```
+
+`integral` variable contains each process partial results, which are loaded into the variable `integral_p` in rank 0, to be appended to its local `integral` variable.
