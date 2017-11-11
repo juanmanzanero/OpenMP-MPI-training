@@ -4,7 +4,7 @@ This repository contains OpenMP and MPI guidelines and code examples. This repos
 
 ### Preparation
 
-In this case, I have used **GNU 7.2.0** compilers, with the libraries:
+I have used **GNU 7.2.0** compilers, with the libraries:
 
   * OpenMPI-3.0.0 (https://www.open-mpi.org/)
   * MPICH-3.2 (https://www.mpich.org/downloads/)
@@ -24,4 +24,8 @@ $ mpicc -c file.c
 $ mpic++ -c file.cpp
 ```
 
-where the shortcuts mpif90, mpicc, mpic++ contain the required PATH and LIBRARY_PATH to find MPI libraries.
+where the shortcuts mpif90, mpicc, mpic++ contain the required PATH and LIBRARY_PATH to find MPI libraries. You can see the invokation with
+
+```bash
+$ mpicc --show
+```
