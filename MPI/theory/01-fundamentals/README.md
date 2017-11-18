@@ -51,9 +51,16 @@ make
 
 ### Including MPI in source files:
 
-C/C++ and also FORTRAN files: include the header file
+* C/C++: Include the header file.
+
 ```C
 #include "mpi.h"
+```
+
+* Fortran: use the module or include the header file
+```Fortran
+use mpi
+include 'mpif.h'
 ```
 
 ### Compiling MPI applications
